@@ -1,0 +1,168 @@
+import sys
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QPushButton, QFileDialog, QWidget, QInputDialog)
+from PyQt5.QtGui import QFont
+from matplotlib.backends.backend_qt5agg import (
+    FigureCanvasQTAgg as FigureCanvas,
+    NavigationToolbar2QT as NavigationToolbar,
+)
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import numpy as np
+from scipy.interpolate import griddata
+import rasterio
+from rasterio.enums import Resampling
+from rasterio.plot import show
+from rasterio.mask import mask 
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+class GISApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("GIS App")
+        self.setGeometry(100, 100, 800, 600)
+
+        self.main_widget = QWidget()
+        self.setCentralWidget(self.main_widget)
+
+        self.layout = QVBoxLayout()
+        self.main_widget.setLayout(self.layout)
+
+        self.figure = plt.figure()
+        self.canvas = FigureCanvas(self.figure)
+        self.layout.addWidget(NavigationToolbar(self.canvas, self))
+        self.layout.addWidget(self.canvas)
+
+        self.load_shapefile_button = QPushButton("Load Shapefile")
+        self.load_shapefile_button.clicked.connect(self.load_shapefile)
+        self.layout.addWidget(self.load_shapefile_button)
+
+        self.load_raster_button = QPushButton("Load Raster")
+        self.load_raster_button.clicked.connect(self.load_raster)
+        self.layout.addWidget(self.load_raster_button)
+
+        self.interpolate_button = QPushButton("Perform Interpolation")
+        self.interpolate_button.clicked.connect(self.perform_interpolation)
+        self.layout.addWidget(self.interpolate_button)
+        
+        self.ndvi_button = QPushButton("NDVI")
+        self.ndvi_button.clicked.connect(self.run_ndvi_tool)
+        self.layout.addWidget(self.ndvi_button)
+
+        self.gdf = None
+        self.raster = None
+
+    def load_shapefile(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Shapefile", "", "Shapefiles (*.shp)")
+        if file_path:
+            try:
+                self.gdf = gpd.read_file(file_path)
+                self.figure.clear()
+                ax = self.figure.add_subplot(111)
+                self.gdf.plot(ax=ax, color='lightblue', edgecolor='black')
+                self.canvas.draw()
+            except Exception as e:
+                print(f"Error loading shapefile: {e}")
+
+    def load_raster(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Raster", "", "GeoTIFF files (*.tif)")
+        if file_path:
+            try:
+                self.raster = rasterio.open(file_path)
+                self.figure.clear()
+                ax = self.figure.add_subplot(111)
+                show(self.raster, ax=ax)
+                self.canvas.draw()
+            except Exception as e:
+                print(f"Error loading raster: {e}")
+
+    def run_ndvi_tool(self):
+        """Handle NDVI calculation when the button is pressed."""
+        # Prompt the user to select a raster image (Red and NIR bands)
+        raster_file = filedialog.askopenfilename(
+            title="Select Raster Image", filetypes=[("GeoTIFF files", "*.tif")]
+        )
+        if not raster_file:
+            messagebox.showwarning("Warning", "No raster image selected.")
+            return
+
+        # Open the selected raster file
+        with rasterio.open(raster_file) as src:
+            # Read the Red and NIR bands (assuming Red is band 3 and NIR is band 4)
+            red_band = src.read(3)  # Red band (adjust index based on your raster)
+            nir_band = src.read(4)  # Near-Infrared band (adjust index based on your raster)
+
+            # Compute NDVI
+            with np.errstate(divide='ignore', invalid='ignore'):  # Handle potential divide by zero
+                ndvi = (nir_band - red_band) / (nir_band + red_band)
+
+            # Mask invalid NDVI values (e.g., divide by zero errors or NaN)
+            ndvi = np.ma.masked_invalid(ndvi)
+
+            # Save the NDVI output
+            output_dir = os.path.dirname(raster_file)
+            output_path = os.path.join(output_dir, "ndvi_output.tif")
+
+            # Create a new metadata dictionary for the NDVI raster
+            output_meta = src.meta.copy()
+            output_meta.update({
+                "dtype": "float32",  # NDVI is usually a float value
+                "count": 1,  # Only one NDVI band
+            })
+
+            # Save the NDVI as a new raster
+            with rasterio.open(output_path, "w", **output_meta) as dst:
+                dst.write(ndvi.filled(0), 1)  # Fill NaN values with 0 or another placeholder
+
+            messagebox.showinfo("Success", f"NDVI layer saved to {output_path}")
+                
+    def perform_interpolation(self):
+        if self.gdf is None:
+            print("Please load a shapefile first.")
+            return
+
+        fields = list(self.gdf.columns)
+        point_field, ok = QInputDialog.getItem(self, "Select Point Data Field", "Available Fields:", fields, 0, False)
+        if not ok:
+            return
+
+        value_field, ok = QInputDialog.getItem(self, "Select Value Field", "Available Fields:", fields, 0, False)
+        if not ok:
+            return
+
+        interpolation_types = ["linear", "cubic", "nearest"]
+        interpolation_type, ok = QInputDialog.getItem(self, "Select Interpolation Type", "Available Types:", interpolation_types, 0, False)
+        if not ok:
+            return
+
+        try:
+            points = np.array(list(zip(self.gdf.geometry.x, self.gdf.geometry.y)))
+            values = self.gdf[value_field].to_numpy()
+
+            grid_x, grid_y = np.mgrid[ 
+                min(self.gdf.geometry.x):max(self.gdf.geometry.x):100j,
+                min(self.gdf.geometry.y):max(self.gdf.geometry.y):100j
+            ]
+
+            grid_z = griddata(points, values, (grid_x, grid_y), method=interpolation_type)
+
+            self.figure.clear()
+            ax = self.figure.add_subplot(111)
+            im = ax.imshow(grid_z.T, extent=(
+                min(self.gdf.geometry.x), max(self.gdf.geometry.x),
+                min(self.gdf.geometry.y), max(self.gdf.geometry.y)
+            ), origin='lower', cmap='viridis')
+
+            self.figure.colorbar(im, ax=ax, label=value_field)
+            self.canvas.draw()
+
+        except Exception as e:
+            print(f"Error performing interpolation: {e}")
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = GISApp()
+    window.show()
+    sys.exit(app.exec_())
