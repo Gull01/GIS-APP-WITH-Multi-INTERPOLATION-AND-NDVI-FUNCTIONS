@@ -1,17 +1,17 @@
-# 🛰️ Multi-Interpolation & NDVI GIS App
+# Multi-Interpolation & NDVI GIS App
 
-## 🚀 Overview
+## Overview
 A refined GIS app offering interpolation and NDVI functionalities. It allows users to upload raster and vector data, visualize spatial information, and perform analyses. Interpolation predicts values for unsampled areas, while NDVI assesses vegetation health using satellite imagery.
 
-## ✨ Key Features
+## Key Features
 - **NDVI Analysis**: Evaluates vegetation health through satellite imagery processing.
 - **Spatial Interpolation**: Formulates predictions for unsampled regions accurately.
 - **Versatile Handling**: Upload and process both raster and vector formats.
 
-## 🛠️ Built With
+## Built With
 - **Tech Stack:** Python, Rasterio, GeoPandas
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 Ensure your local environment is configured securely (e.g. Python 3.8+ or necessary GIS software context).
@@ -27,7 +27,7 @@ Ensure your local environment is configured securely (e.g. Python 3.8+ or necess
    ```
 3. Set up your environment and dependencies as needed.
 
-## 📄 License
+## License
 This project is licensed under the MIT License - see below for details.
 
 ```text
