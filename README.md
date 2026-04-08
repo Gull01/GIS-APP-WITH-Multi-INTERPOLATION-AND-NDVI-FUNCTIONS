@@ -3,3 +3,15 @@ A refined GIS app offering interpolation and NDVI functionalities. It allows use
 This Python-based GIS app, developed using PyQt5, enables users to visualize and analyze spatial data. Key features include loading shapefiles and raster files, performing NDVI calculations for vegetation health, and interpolation to estimate spatial values. The app offers an interactive interface, leveraging libraries like Matplotlib, GeoPandas, and Rasterio for data visualization and geospatial analysis.
 GUI interface below :
 ![image](https://github.com/user-attachments/assets/3ec34799-9e30-4b5b-84a1-0e573e110ce3)
+
+## Overview
+This project is organized for professional use with clear structure and documentation.
+
+## Features
+- Clean and maintainable codebase.
+- Structured for readability and reuse.
+
+## Getting Started
+1. Clone the repository.
+2. Install dependencies if needed.
+3. Run the project using the repository instructions.
